@@ -134,6 +134,7 @@ def main_worker(gpu, ngpus_per_node, args):
         def print_pass(*args):
             pass
         builtins.print = print_pass
+    else:
         # set up logs
         args.save = './experiments/imagenet/eval-{}-{}-{}-{}'.format(
             args.save, time.strftime("%Y%m%d-%H%M%S"), args.arch, args.seed)
