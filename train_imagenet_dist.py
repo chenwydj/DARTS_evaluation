@@ -271,7 +271,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 scheduler.step()
                 current_lr = scheduler.get_lr()[0]
             elif args.lr_scheduler == 'linear':
-                current_lr = adjust_lr(optimizer, epoch)
+                current_lr = adjust_lr(args, optimizer, epoch)
             else:
                 print('Wrong lr type, exit')
                 sys.exit(1)
@@ -289,7 +289,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
 
             epoch_start = time.time()
-            train_acc, train_obj = train(train_queue, model, criterion_smooth, optimizer)
+            train_acc, train_obj = train(args, train_queue, model, criterion_smooth, optimizer)
             # logging.info('Train_acc: %f', train_acc)
             description = 'Epoch [{}/{}] LR:{} Train:{}'.format(epoch+1, args.epochs, current_lr, train_acc)
             epoch_bar.set_description(description)
@@ -325,7 +325,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 scheduler.step()
                 current_lr = scheduler.get_lr()[0]
             elif args.lr_scheduler == 'linear':
-                current_lr = adjust_lr(optimizer, epoch)
+                current_lr = adjust_lr(args, optimizer, epoch)
             else:
                 print('Wrong lr type, exit')
                 sys.exit(1)
@@ -337,10 +337,10 @@ def main_worker(gpu, ngpus_per_node, args):
                 model.module.drop_path_prob = args.drop_path_prob * epoch / args.epochs
             else:
                 model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
-            train_acc, train_obj = train(train_queue, model, criterion_smooth, optimizer)
+            train_acc, train_obj = train(args, train_queue, model, criterion_smooth, optimizer)
 
 
-def adjust_lr(optimizer, epoch):
+def adjust_lr(args, optimizer, epoch):
     # Smaller slope for the last 5 epochs because lr * 1/250 is relatively large
     if args.epochs - epoch > 5:
         lr = args.learning_rate * (args.epochs - 5 - epoch) / (args.epochs - 5)
@@ -351,7 +351,7 @@ def adjust_lr(optimizer, epoch):
     return lr
 
 
-def train(train_queue, model, criterion, optimizer):
+def train(args, train_queue, model, criterion, optimizer):
     objs = utils.AvgrageMeter()
     top1 = utils.AvgrageMeter()
     top5 = utils.AvgrageMeter()
@@ -380,16 +380,16 @@ def train(train_queue, model, criterion, optimizer):
         top1.update(prec1.data, n)
         top5.update(prec5.data, n)
 
-        if step % args.report_freq == 0:
-            end_time = time.time()
-            if step == 0:
-                duration = 0
-                start_time = time.time()
-            else:
-                duration = end_time - start_time
-                start_time = time.time()
-            logging.info('TRAIN Step: %03d Objs: %e R1: %f R5: %f Duration: %ds BTime: %.3fs',
-                         step, objs.avg, top1.avg, top5.avg, duration, batch_time.avg)
+        # if step % args.report_freq == 0:
+        #     end_time = time.time()
+        #     if step == 0:
+        #         duration = 0
+        #         start_time = time.time()
+        #     else:
+        #         duration = end_time - start_time
+        #         start_time = time.time()
+        #     logging.info('TRAIN Step: %03d Objs: %e R1: %f R5: %f Duration: %ds BTime: %.3fs',
+        #                  step, objs.avg, top1.avg, top5.avg, duration, batch_time.avg)
 
     return top1.avg, objs.avg
 
@@ -414,16 +414,16 @@ def infer(valid_queue, model, criterion):
             top1.update(prec1.data, n)
             top5.update(prec5.data, n)
 
-            if step % args.report_freq == 0:
-                end_time = time.time()
-                if step == 0:
-                    duration = 0
-                    start_time = time.time()
-                else:
-                    duration = end_time - start_time
-                    start_time = time.time()
-                logging.info('VALID Step: %03d Objs: %e R1: %f R5: %f Duration: %ds',
-                             step, objs.avg, top1.avg, top5.avg, duration)
+            # if step % args.report_freq == 0:
+            #     end_time = time.time()
+            #     if step == 0:
+            #         duration = 0
+            #         start_time = time.time()
+            #     else:
+            #         duration = end_time - start_time
+            #         start_time = time.time()
+            #     logging.info('VALID Step: %03d Objs: %e R1: %f R5: %f Duration: %ds',
+            #                  step, objs.avg, top1.avg, top5.avg, duration)
 
     return top1.avg, top5.avg, objs.avg
 
