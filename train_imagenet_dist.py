@@ -330,7 +330,7 @@ def main_worker(gpu, ngpus_per_node, args):
             else:
                 print('Wrong lr type, exit')
                 sys.exit(1)
-            if epoch < 5 and args.batch_size > 256:
+            if epoch < 5 and args.batch_size > 32:
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr * (epoch + 1) / 5.0
                 logging.info('Warming-up Epoch: %d, LR: %e', epoch, lr * (epoch + 1) / 5.0)
