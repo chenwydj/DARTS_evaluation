@@ -54,21 +54,7 @@ parser.add_argument('--dist-backend', default='nccl', type=str, help='distribute
 parser.add_argument('--gpu', default=None, type=int, help='GPU id to use.')
 parser.add_argument('--multiprocessing-distributed', action='store_true', help='Use multi-processing distributed training to launch N processes per node, which has N GPUs. This is the fastest way to use PyTorch for either single node or multi node data parallel training')
 
-args, unparsed = parser.parse_known_args()
-
-args.save = './experiments/imagenet/eval-{}-{}-{}-{}'.format(
-    args.save, time.strftime("%Y%m%d-%H%M%S"), args.arch, args.seed)
-if args.auxiliary:
-    args.save += '-auxiliary-' + str(args.auxiliary_weight)
-utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
-
-log_format = '%(asctime)s %(message)s'
-logging.basicConfig(stream=sys.stdout, level=logging.INFO,
-    format=log_format, datefmt='%m/%d %I:%M:%S %p')
-fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
-fh.setFormatter(logging.Formatter(log_format))
-logging.getLogger().addHandler(fh)
-
+# args, unparsed = parser.parse_known_args()
 
 CLASSES = 1000
 
@@ -148,6 +134,18 @@ def main_worker(gpu, ngpus_per_node, args):
         def print_pass(*args):
             pass
         builtins.print = print_pass
+        # set up logs
+        args.save = './experiments/imagenet/eval-{}-{}-{}-{}'.format(
+            args.save, time.strftime("%Y%m%d-%H%M%S"), args.arch, args.seed)
+        if args.auxiliary:
+            args.save += '-auxiliary-' + str(args.auxiliary_weight)
+        utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
+
+        log_format = '%(asctime)s %(message)s'
+        logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
+        fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
+        fh.setFormatter(logging.Formatter(log_format))
+        logging.getLogger().addHandler(fh)
 
     if not torch.cuda.is_available():
         logging.info('No GPU device available')
