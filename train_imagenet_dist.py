@@ -157,7 +157,7 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.enabled = True
     torch.cuda.manual_seed(args.seed)
     logging.info("args = %s", args)
-    logging.info("unparsed_args = %s", unparsed)
+    # logging.info("unparsed_args = %s", unparsed)
     num_gpus = torch.cuda.device_count()
     genotype = eval("genotypes.%s" % args.arch)
     print('---------Genotype---------')
