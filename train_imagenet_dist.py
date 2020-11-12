@@ -266,7 +266,7 @@ def main_worker(gpu, ngpus_per_node, args):
         ############ master process writes logs #####################
         epoch_bar = tqdm(range(args.epochs), position=0, leave=True)
         for epoch in epoch_bar:
-            logging.log("<< ============== JOB (PID = %d) %s ============== >>"%(PID, args.save_dir))
+            logging.log("<< ============== JOB (PID = %d) %s ============== >>"%(PID, args.save))
 
             if args.lr_scheduler == 'cosine':
                 scheduler.step()
