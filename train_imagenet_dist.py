@@ -264,7 +264,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if not args.multiprocessing_distributed or (args.multiprocessing_distributed and args.rank % ngpus_per_node == 0):
         ############ master process writes logs #####################
-        epoch_bar = tqdm(range(args.start_epoch, args.epochs), position=0, leave=True)
+        epoch_bar = tqdm(range(args.epochs), position=0, leave=True)
         for epoch in epoch_bar:
             logger.log("<< ============== JOB (PID = %d) %s ============== >>"%(PID, args.save_dir))
 
