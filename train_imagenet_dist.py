@@ -22,6 +22,7 @@ import torch.optim
 import torch.multiprocessing as mp
 import torch.utils.data
 import torch.utils.data.distributed
+from thop import profile
 
 from torch.autograd import Variable
 from model import NetworkImageNet as Network
@@ -165,6 +166,8 @@ def main_worker(gpu, ngpus_per_node, args):
     logging.info(genotype)
     print('--------------------------')
     model = Network(args.init_channels, CLASSES, args.layers, args.auxiliary, genotype)
+    macs, params = profile(model, inputs=(torch.randn(1, 3, 224, 224), ))
+    logging.info("param = %f, flops = %f", params, macs)
 
     if not torch.cuda.is_available():
         print('using CPU, this will be slow')
@@ -203,6 +206,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # else:
     #     model = model.cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
+    macs, params = profile(model, inputs=(torch.randn(1, 3, 224, 224), ))
 
     criterion = nn.CrossEntropyLoss()
     criterion = criterion.cuda()
