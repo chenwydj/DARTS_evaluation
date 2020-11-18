@@ -260,8 +260,10 @@ def main_worker(gpu, ngpus_per_node, args):
     valid_queue = torch.utils.data.DataLoader(
         valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
 
-#    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.decay_period, gamma=args.gamma)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.decay_period, gamma=args.gamma)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100, 200, 300], gamma=0.215)  # 0.5 => 0.11 => 0.23 => 0.05
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 180, 240, 300], gamma=0.398)  # 0.5 => 0.2 => 0.08 => 0.032 => 0.012 => 0.005
     best_acc_top1 = 0
     best_acc_top5 = 0
     lr = args.learning_rate
@@ -272,14 +274,6 @@ def main_worker(gpu, ngpus_per_node, args):
         for epoch in epoch_bar:
             logging.info("<< ============== JOB (PID = %d) %s ============== >>"%(PID, args.save))
 
-            if args.lr_scheduler == 'cosine':
-                scheduler.step()
-                current_lr = scheduler.get_lr()[0]
-            elif args.lr_scheduler == 'linear':
-                current_lr = adjust_lr(args, optimizer, epoch)
-            else:
-                print('Wrong lr type, exit')
-                sys.exit(1)
             if epoch < 5 and args.batch_size > 32:
                 current_lr = lr * (epoch + 1) / 5.0
                 for param_group in optimizer.param_groups:
@@ -323,17 +317,19 @@ def main_worker(gpu, ngpus_per_node, args):
                 'best_acc_top1': best_acc_top1,
                 'optimizer': optimizer.state_dict(),
                 }, is_best, args.save)
+            # if args.lr_scheduler == 'cosine':
+            #     scheduler.step()
+            #     current_lr = scheduler.get_lr()[0]
+            # elif args.lr_scheduler == 'linear':
+            #     current_lr = adjust_lr(args, optimizer, epoch)
+            # else:
+            #     print('Wrong lr type, exit')
+            #     sys.exit(1)
+            scheduler.step()
+            current_lr = scheduler.get_lr()[0]
     else:
         ############ processes no logs #####################
         for epoch in range(args.epochs):
-            if args.lr_scheduler == 'cosine':
-                scheduler.step()
-                current_lr = scheduler.get_lr()[0]
-            elif args.lr_scheduler == 'linear':
-                current_lr = adjust_lr(args, optimizer, epoch)
-            else:
-                print('Wrong lr type, exit')
-                sys.exit(1)
             if epoch < 5 and args.batch_size > 32:
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr * (epoch + 1) / 5.0
@@ -343,6 +339,16 @@ def main_worker(gpu, ngpus_per_node, args):
             else:
                 model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
             train_acc, train_obj = train(args, train_queue, model, criterion_smooth, optimizer)
+            # if args.lr_scheduler == 'cosine':
+            #     scheduler.step()
+            #     current_lr = scheduler.get_lr()[0]
+            # elif args.lr_scheduler == 'linear':
+            #     current_lr = adjust_lr(args, optimizer, epoch)
+            # else:
+            #     print('Wrong lr type, exit')
+            #     sys.exit(1)
+            scheduler.step()
+            current_lr = scheduler.get_lr()[0]
 
 
 def adjust_lr(args, optimizer, epoch):
