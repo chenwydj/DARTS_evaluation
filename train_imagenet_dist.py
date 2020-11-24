@@ -14,6 +14,7 @@ import argparse
 import torch.nn as nn
 import genotypes as genotypes
 import torch.utils
+from torch.utils.tensorboard import SummaryWriter
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
@@ -149,6 +150,7 @@ def main_worker(gpu, ngpus_per_node, args):
         fh = logging.FileHandler(os.path.join(args.save, 'log.txt'))
         fh.setFormatter(logging.Formatter(log_format))
         logging.getLogger().addHandler(fh)
+        writer = SummaryWriter(args.save)
 
     if not torch.cuda.is_available():
         logging.info('No GPU device available')
@@ -273,13 +275,15 @@ def main_worker(gpu, ngpus_per_node, args):
         epoch_bar = tqdm(range(args.epochs), position=0, leave=True)
         for epoch in epoch_bar:
             logging.info("<< ============== JOB (PID = %d) %s ============== >>"%(PID, args.save))
+            if args.distributed:
+                train_sampler.set_epoch(epoch)
 
             if epoch < 5 and args.batch_size > 32:
                 current_lr = lr * (epoch + 1) / 5.0
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr * (epoch + 1) / 5.0
                 # logging.info('Warming-up Epoch: %d, LR: %e', epoch, lr * (epoch + 1) / 5.0)
-            description = 'Epoch [{}/{}] LR:{}'.format(epoch+1, args.epochs, current_lr)
+            description = 'Epoch [{}/{}] | LR:{}'.format(epoch+1, args.epochs, current_lr)
             epoch_bar.set_description(description)
 
             if args.distributed or args.gpu is None:
@@ -290,13 +294,13 @@ def main_worker(gpu, ngpus_per_node, args):
             epoch_start = time.time()
             train_acc, train_obj = train(args, train_queue, model, criterion_smooth, optimizer)
             # logging.info('Train_acc: %f', train_acc)
-            description = 'Epoch [{}/{}] LR:{} Train:{}'.format(epoch+1, args.epochs, current_lr, train_acc)
+            description = 'Epoch [{}/{}] | LR:{} | Train:{}'.format(epoch+1, args.epochs, current_lr, train_acc)
             epoch_bar.set_description(description)
 
             valid_acc_top1, valid_acc_top5, valid_obj = infer(valid_queue, model, criterion)
             # logging.info('Valid_acc_top1: %f', valid_acc_top1)
             # logging.info('Valid_acc_top5: %f', valid_acc_top5)
-            description = 'Epoch [{}/{}] LR:{} Train:{} Validation:{}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5)
+            description = 'Epoch [{}/{}] | LR:{} | Train:{} Validation:{}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5)
             epoch_bar.set_description(description)
             epoch_duration = time.time() - epoch_start
             # logging.info('Epoch time: %ds.', epoch_duration)
@@ -307,7 +311,12 @@ def main_worker(gpu, ngpus_per_node, args):
             if valid_acc_top1 > best_acc_top1:
                 best_acc_top1 = valid_acc_top1
                 is_best = True
-            description = 'Epoch [{}/{}] | LR:{} Train:{} | Validation:{}/{} | Best: {}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
+            writer.add_scalar("acc/train", train_acc, epoch)
+            writer.add_scalar("acc/valid_best_top1", best_acc_top1, epoch)
+            writer.add_scalar("acc/valid_best_top5", best_acc_top5, epoch)
+            writer.add_scalar("acc/valid_top1", valid_acc_top1, epoch)
+            writer.add_scalar("acc/valid_top5", valid_acc_top5, epoch)
+            description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{}/{} | Best: {}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
             # logging.info('Best_acc_top1: %f', best_acc_top1)
             # logging.info('Best_acc_top5: %f', best_acc_top5)
@@ -326,10 +335,12 @@ def main_worker(gpu, ngpus_per_node, args):
             #     print('Wrong lr type, exit')
             #     sys.exit(1)
             scheduler.step()
-            current_lr = scheduler.get_lr()[0]
+            current_lr = scheduler.get_last_lr()[0]
     else:
         ############ processes no logs #####################
         for epoch in range(args.epochs):
+            if args.distributed:
+                train_sampler.set_epoch(epoch)
             if epoch < 5 and args.batch_size > 32:
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr * (epoch + 1) / 5.0
@@ -348,7 +359,7 @@ def main_worker(gpu, ngpus_per_node, args):
             #     print('Wrong lr type, exit')
             #     sys.exit(1)
             scheduler.step()
-            current_lr = scheduler.get_lr()[0]
+            current_lr = scheduler.get_last_lr()[0]
 
 
 def adjust_lr(args, optimizer, epoch):
