@@ -293,13 +293,13 @@ def main_worker(gpu, ngpus_per_node, args):
 
             epoch_start = time.time()
             train_acc, train_obj = train(args, train_queue, model, criterion_smooth, optimizer)
-            # logging.info('Train_acc: %f', train_acc)
+            logging.info('Train_acc: %f', train_acc)
             description = 'Epoch [{}/{}] | LR:{} | Train:{}'.format(epoch+1, args.epochs, current_lr, train_acc)
             epoch_bar.set_description(description)
 
             valid_acc_top1, valid_acc_top5, valid_obj = infer(valid_queue, model, criterion)
-            # logging.info('Valid_acc_top1: %f', valid_acc_top1)
-            # logging.info('Valid_acc_top5: %f', valid_acc_top5)
+            logging.info('Valid_acc_top1: %f', valid_acc_top1)
+            logging.info('Valid_acc_top5: %f', valid_acc_top5)
             description = 'Epoch [{}/{}] | LR:{} | Train:{} Validation:{}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5)
             epoch_bar.set_description(description)
             epoch_duration = time.time() - epoch_start
@@ -318,8 +318,8 @@ def main_worker(gpu, ngpus_per_node, args):
             writer.add_scalar("acc/valid_top5", valid_acc_top5, epoch)
             description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{}/{} | Best: {}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
-            # logging.info('Best_acc_top1: %f', best_acc_top1)
-            # logging.info('Best_acc_top5: %f', best_acc_top5)
+            logging.info('Best_acc_top1: %f', best_acc_top1)
+            logging.info('Best_acc_top5: %f', best_acc_top5)
             utils.save_checkpoint({
                 'epoch': epoch + 1,
                 'state_dict': model.state_dict(),
@@ -344,7 +344,7 @@ def main_worker(gpu, ngpus_per_node, args):
             if epoch < 5 and args.batch_size > 32:
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr * (epoch + 1) / 5.0
-                logging.info('Warming-up Epoch: %d, LR: %e', epoch, lr * (epoch + 1) / 5.0)
+                # logging.info('Warming-up Epoch: %d, LR: %e', epoch, lr * (epoch + 1) / 5.0)
             if args.distributed or args.gpu is None:
                 model.module.drop_path_prob = args.drop_path_prob * epoch / args.epochs
             else:
