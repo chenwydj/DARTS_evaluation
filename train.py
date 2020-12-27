@@ -83,7 +83,8 @@ def main():
     logging.info(genotype)
     print('--------------------------')
     model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
-    macs, params = profile(model, inputs=(torch.randn(1, 3, 32, 32), ))
+    model.drop_path_prob = 0
+    macs, params = profile(model, inputs=(torch.randn(1, 3, 32, 32), ), verbose=False)
     logging.info("param = %f, flops = %f", params, macs)
     model = model.cuda()
 
