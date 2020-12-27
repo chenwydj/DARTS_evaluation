@@ -113,20 +113,20 @@ def main():
     best_acc = 0.0
     epoch_bar = tqdm(range(args.epochs), position=0, leave=True)
     for epoch in epoch_bar:
-        # logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
+        # logging.info('epoch %d lr %e', epoch, scheduler.get_last_lr()[0])
         model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
-        description = 'Epoch [{}/{}] | LR:{}'.format(epoch+1, args.epochs, scheduler.get_lr()[0])
+        description = 'Epoch [{}/{}] | LR:{}'.format(epoch+1, args.epochs, scheduler.get_last_lr()[0])
 
         train_acc, train_obj = train(train_queue, model, criterion, optimizer)
         # logging.info('train_acc %f', train_acc)
-        description = 'Epoch [{}/{}] | LR:{} | Train:{}'.format(epoch+1, args.epochs, scheduler.get_lr()[0], train_acc)
+        description = 'Epoch [{}/{}] | LR:{} | Train:{}'.format(epoch+1, args.epochs, scheduler.get_last_lr()[0], train_acc)
         epoch_bar.set_description(description)
 
         valid_acc, valid_obj = infer(valid_queue, model, criterion)
         if valid_acc > best_acc:
             best_acc = valid_acc
         # logging.info('valid_acc %f, best_acc %f', valid_acc, best_acc)
-        description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{} | Best: {}'.format(epoch+1, args.epochs, scheduler.get_lr()[0], train_acc, valid_acc, best_acc)
+        description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{} | Best: {}'.format(epoch+1, args.epochs, scheduler.get_last_lr()[0], train_acc, valid_acc, best_acc)
         epoch_bar.set_description(description)
 
         writer.add_scalar("acc/train", train_acc, epoch)

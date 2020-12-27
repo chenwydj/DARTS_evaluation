@@ -269,7 +269,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
             if args.lr_scheduler == 'cosine':
                 scheduler.step()
-                current_lr = scheduler.get_lr()[0]
+                current_lr = scheduler.get_last_lr()[0]
             elif args.lr_scheduler == 'linear':
                 current_lr = adjust_lr(args, optimizer, epoch)
             else:
@@ -328,25 +328,22 @@ def main_worker(gpu, ngpus_per_node, args):
         for epoch in range(args.epochs):
             if args.distributed:
                 train_sampler.set_epoch(epoch)
+            if args.lr_scheduler == 'cosine':
+                scheduler.step()
+                current_lr = scheduler.get_last_lr()[0]
+            elif args.lr_scheduler == 'linear':
+                current_lr = adjust_lr(args, optimizer, epoch)
+            else:
+                print('Wrong lr type, exit')
+                sys.exit(1)
             if epoch < 5 and args.batch_size > 32:
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr * (epoch + 1) / 5.0
-                # logging.info('Warming-up Epoch: %d, LR: %e', epoch, lr * (epoch + 1) / 5.0)
             if args.distributed or args.gpu is None:
                 model.module.drop_path_prob = args.drop_path_prob * epoch / args.epochs
             else:
                 model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
             train_acc, train_obj = train(args, train_queue, model, criterion_smooth, optimizer)
-            # if args.lr_scheduler == 'cosine':
-            #     scheduler.step()
-            #     current_lr = scheduler.get_lr()[0]
-            # elif args.lr_scheduler == 'linear':
-            #     current_lr = adjust_lr(args, optimizer, epoch)
-            # else:
-            #     print('Wrong lr type, exit')
-            #     sys.exit(1)
-            scheduler.step()
-            current_lr = scheduler.get_last_lr()[0]
 
 
 def adjust_lr(args, optimizer, epoch):
