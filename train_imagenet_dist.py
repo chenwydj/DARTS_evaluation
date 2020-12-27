@@ -36,7 +36,6 @@ parser.add_argument('--batch_size', type=int, default=768, help='batch size')
 parser.add_argument('--learning_rate', type=float, default=0.5, help='init learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=3e-5, help='weight decay')
-parser.add_argument('--report_freq', type=float, default=100, help='report frequency')
 parser.add_argument('--epochs', type=int, default=250, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=48, help='num of init channels')
 parser.add_argument('--layers', type=int, default=14, help='total number of layers')
@@ -60,7 +59,6 @@ parser.add_argument('--multiprocessing-distributed', action='store_true', help='
 # args, unparsed = parser.parse_known_args()
 
 CLASSES = 1000
-
 
 class CrossEntropyLabelSmooth(nn.Module):
 
@@ -155,13 +153,13 @@ def main_worker(gpu, ngpus_per_node, args):
     if not torch.cuda.is_available():
         logging.info('No GPU device available')
         sys.exit(1)
+
     np.random.seed(args.seed)
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
     cudnn.enabled = True
     torch.cuda.manual_seed(args.seed)
     logging.info("args = %s", args)
-    # logging.info("unparsed_args = %s", unparsed)
     num_gpus = torch.cuda.device_count()
     genotype = eval("genotypes.%s" % args.arch)
     print('---------Genotype---------')
@@ -203,11 +201,6 @@ def main_worker(gpu, ngpus_per_node, args):
         else:
             model = torch.nn.DataParallel(model).cuda()
 
-    # if num_gpus > 1:
-    #     model = nn.DataParallel(model)
-    #     model = model.cuda()
-    # else:
-    #     model = model.cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
     criterion = nn.CrossEntropyLoss()
@@ -247,8 +240,7 @@ def main_worker(gpu, ngpus_per_node, args):
             normalize,
         ]))
 
-    train_queue = torch.utils.data.DataLoader(
-        train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=args.workers)
+    train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=args.workers)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
@@ -259,13 +251,10 @@ def main_worker(gpu, ngpus_per_node, args):
         train_data, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler, drop_last=True)
 
-    valid_queue = torch.utils.data.DataLoader(
-        valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
+    valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
 
     # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.decay_period, gamma=args.gamma)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100, 200, 300], gamma=0.215)  # 0.5 => 0.11 => 0.23 => 0.05
-    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[60, 120, 180, 240, 300], gamma=0.398)  # 0.5 => 0.2 => 0.08 => 0.032 => 0.012 => 0.005
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
     best_acc_top1 = 0
     best_acc_top5 = 0
     lr = args.learning_rate
@@ -278,6 +267,14 @@ def main_worker(gpu, ngpus_per_node, args):
             if args.distributed:
                 train_sampler.set_epoch(epoch)
 
+            if args.lr_scheduler == 'cosine':
+                scheduler.step()
+                current_lr = scheduler.get_lr()[0]
+            elif args.lr_scheduler == 'linear':
+                current_lr = adjust_lr(args, optimizer, epoch)
+            else:
+                print('Wrong lr type, exit')
+                sys.exit(1)
             if epoch < 5 and args.batch_size > 32:
                 current_lr = lr * (epoch + 1) / 5.0
                 for param_group in optimizer.param_groups:
@@ -326,16 +323,6 @@ def main_worker(gpu, ngpus_per_node, args):
                 'best_acc_top1': best_acc_top1,
                 'optimizer': optimizer.state_dict(),
                 }, is_best, args.save)
-            # if args.lr_scheduler == 'cosine':
-            #     scheduler.step()
-            #     current_lr = scheduler.get_lr()[0]
-            # elif args.lr_scheduler == 'linear':
-            #     current_lr = adjust_lr(args, optimizer, epoch)
-            # else:
-            #     print('Wrong lr type, exit')
-            #     sys.exit(1)
-            scheduler.step()
-            current_lr = scheduler.get_last_lr()[0]
     else:
         ############ processes no logs #####################
         for epoch in range(args.epochs):
@@ -381,8 +368,8 @@ def train(args, train_queue, model, criterion, optimizer):
     model.train()
 
     for step, (input, target) in enumerate(train_queue):
-        target = target.cuda(non_blocking=True)
         input = input.cuda(non_blocking=True)
+        target = target.cuda(non_blocking=True)
         b_start = time.time()
         optimizer.zero_grad()
         logits, logits_aux = model(input)
@@ -390,7 +377,6 @@ def train(args, train_queue, model, criterion, optimizer):
         if args.auxiliary:
             loss_aux = criterion(logits_aux, target)
             loss += args.auxiliary_weight*loss_aux
-
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
@@ -401,17 +387,6 @@ def train(args, train_queue, model, criterion, optimizer):
         objs.update(loss.data, n)
         top1.update(prec1.data, n)
         top5.update(prec5.data, n)
-
-        # if step % args.report_freq == 0:
-        #     end_time = time.time()
-        #     if step == 0:
-        #         duration = 0
-        #         start_time = time.time()
-        #     else:
-        #         duration = end_time - start_time
-        #         start_time = time.time()
-        #     logging.info('TRAIN Step: %03d Objs: %e R1: %f R5: %f Duration: %ds BTime: %.3fs',
-        #                  step, objs.avg, top1.avg, top5.avg, duration, batch_time.avg)
 
     return top1.avg, objs.avg
 
@@ -435,17 +410,6 @@ def infer(valid_queue, model, criterion):
             objs.update(loss.data, n)
             top1.update(prec1.data, n)
             top5.update(prec5.data, n)
-
-            # if step % args.report_freq == 0:
-            #     end_time = time.time()
-            #     if step == 0:
-            #         duration = 0
-            #         start_time = time.time()
-            #     else:
-            #         duration = end_time - start_time
-            #         start_time = time.time()
-            #     logging.info('VALID Step: %03d Objs: %e R1: %f R5: %f Duration: %ds',
-            #                  step, objs.avg, top1.avg, top5.avg, duration)
 
     return top1.avg, top5.avg, objs.avg
 
