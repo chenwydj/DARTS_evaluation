@@ -110,16 +110,16 @@ def main():
     train_queue = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True, pin_memory=True)
     valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
-    best_acc = 0.0
+    best_acc = train_acc = valid_acc = 0.0
     epoch_bar = tqdm(range(args.epochs), position=0, leave=True)
     for epoch in epoch_bar:
         # logging.info('epoch %d lr %e', epoch, scheduler.get_last_lr()[0])
         model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
-        description = 'Epoch [{}/{}] | LR:{}'.format(epoch+1, args.epochs, scheduler.get_last_lr()[0])
+        description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{} | Best: {}'.format(epoch+1, args.epochs, scheduler.get_last_lr()[0], train_acc, valid_acc, best_acc)
 
         train_acc, train_obj = train(train_queue, model, criterion, optimizer)
         # logging.info('train_acc %f', train_acc)
-        description = 'Epoch [{}/{}] | LR:{} | Train:{}'.format(epoch+1, args.epochs, scheduler.get_last_lr()[0], train_acc)
+        description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{} | Best: {}'.format(epoch+1, args.epochs, scheduler.get_last_lr()[0], train_acc, valid_acc, best_acc)
         epoch_bar.set_description(description)
 
         valid_acc, valid_obj = infer(valid_queue, model, criterion)

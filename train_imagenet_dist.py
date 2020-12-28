@@ -167,7 +167,7 @@ def main_worker(gpu, ngpus_per_node, args):
     print('--------------------------')
     model = Network(args.init_channels, CLASSES, args.layers, args.auxiliary, genotype)
     model.drop_path_prob = 0
-    macs, params = profile(model, inputs=(torch.randn(1, 3, 224, 224), ))
+    macs, params = profile(model, inputs=(torch.randn(1, 3, 224, 224), ), verbose=True)
     logging.info("param = %f, flops = %f", params, macs)
 
     if not torch.cuda.is_available():
@@ -255,8 +255,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.decay_period, gamma=args.gamma)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
-    best_acc_top1 = 0
-    best_acc_top5 = 0
+    train_acc = valid_acc_top1 = valid_acc_top5 = best_acc_top1 = best_acc_top5 = 0
     lr = args.learning_rate
 
     if not args.multiprocessing_distributed or (args.multiprocessing_distributed and args.rank % ngpus_per_node == 0):
@@ -280,7 +279,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr * (epoch + 1) / 5.0
                 # logging.info('Warming-up Epoch: %d, LR: %e', epoch, lr * (epoch + 1) / 5.0)
-            description = 'Epoch [{}/{}] | LR:{}'.format(epoch+1, args.epochs, current_lr)
+            description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{}/{} | Best: {}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
 
             if args.distributed or args.gpu is None:
@@ -291,13 +290,13 @@ def main_worker(gpu, ngpus_per_node, args):
             epoch_start = time.time()
             train_acc, train_obj = train(args, train_queue, model, criterion_smooth, optimizer)
             logging.info('Train_acc: %f', train_acc)
-            description = 'Epoch [{}/{}] | LR:{} | Train:{}'.format(epoch+1, args.epochs, current_lr, train_acc)
+            description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{}/{} | Best: {}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
 
             valid_acc_top1, valid_acc_top5, valid_obj = infer(valid_queue, model, criterion)
             logging.info('Valid_acc_top1: %f', valid_acc_top1)
             logging.info('Valid_acc_top5: %f', valid_acc_top5)
-            description = 'Epoch [{}/{}] | LR:{} | Train:{} Validation:{}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5)
+            description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{}/{} | Best: {}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
             epoch_duration = time.time() - epoch_start
             # logging.info('Epoch time: %ds.', epoch_duration)
