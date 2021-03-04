@@ -6,6 +6,8 @@ This repository is also used to evaluate the searched architectures by TENAS.
 
 ## Usage:
 
+Please put your searched genotype inside `genotypes.py`.
+
 ### CIFAR-10
 ```bash
 # CIFAR-10 training
