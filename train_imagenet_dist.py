@@ -49,6 +49,9 @@ parser.add_argument('--grad_clip', type=float, default=5., help='gradient clippi
 parser.add_argument('--label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--lr_scheduler', type=str, default='linear', help='lr scheduler, linear or cosine')
 
+parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
+parser.add_argument('--start-epoch', default=0, type=int, metavar='N', help='manual epoch number (useful on restarts)')
+
 parser.add_argument('--world-size', default=-1, type=int, help='number of nodes for distributed training')
 parser.add_argument('--rank', default=-1, type=int, help='node rank for distributed training')
 parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str, help='url used to set up distributed training')
@@ -215,6 +218,28 @@ def main_worker(gpu, ngpus_per_node, args):
         weight_decay=args.weight_decay
         )
 
+    # https://github.com/pytorch/examples/blob/master/imagenet/main.py
+    if args.resume:
+        if os.path.isfile(args.resume):
+            print("=> loading checkpoint '{}'".format(args.resume))
+            if args.gpu is None:
+                checkpoint = torch.load(args.resume)
+            else:
+                # Map model to be loaded to specified single gpu.
+                loc = 'cuda:{}'.format(args.gpu)
+                checkpoint = torch.load(args.resume, map_location=loc)
+            args.start_epoch = checkpoint['epoch']
+            best_acc1 = checkpoint['best_acc1']
+            if args.gpu is not None:
+                # best_acc1 may be from a checkpoint from a different GPU
+                best_acc1 = best_acc1.to(args.gpu)
+            model.load_state_dict(checkpoint['state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(args.resume, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(args.resume))
+
     traindir = os.path.join(args.data, 'train')
     validdir = os.path.join(args.data, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -260,7 +285,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if not args.multiprocessing_distributed or (args.multiprocessing_distributed and args.rank % ngpus_per_node == 0):
         ############ master process writes logs #####################
-        epoch_bar = tqdm(range(args.epochs), position=0, leave=True)
+        epoch_bar = tqdm(range(args.start_epoch, args.epochs), position=0, leave=True)
         for epoch in epoch_bar:
             logging.info("<< ============== JOB (PID = %d) %s ============== >>"%(PID, args.save))
             if args.distributed:
@@ -290,13 +315,13 @@ def main_worker(gpu, ngpus_per_node, args):
             epoch_start = time.time()
             train_acc, train_obj = train(args, train_queue, model, criterion_smooth, optimizer)
             # logging.info('Train_acc: %f', train_acc)
-            description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{}/{} | Best: {}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
+            description = 'Epoch [{}/{}] | LR:{.3f} | Train:{.3f} | Validation:{.3f}/{.3f} | Best: {.3f}/{.3f}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
 
             valid_acc_top1, valid_acc_top5, valid_obj = infer(valid_queue, model, criterion)
             # logging.info('Valid_acc_top1: %f', valid_acc_top1)
             # logging.info('Valid_acc_top5: %f', valid_acc_top5)
-            description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{}/{} | Best: {}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
+            description = 'Epoch [{}/{}] | LR:{.3f} | Train:{.3f} | Validation:{.3f}/{.3f} | Best: {.3f}/{.3f}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
             epoch_duration = time.time() - epoch_start
             # logging.info('Epoch time: %ds.', epoch_duration)
@@ -312,7 +337,7 @@ def main_worker(gpu, ngpus_per_node, args):
             writer.add_scalar("acc/valid_best_top5", best_acc_top5, epoch)
             writer.add_scalar("acc/valid_top1", valid_acc_top1, epoch)
             writer.add_scalar("acc/valid_top5", valid_acc_top5, epoch)
-            description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{}/{} | Best: {}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
+            description = 'Epoch [{}/{}] | LR:{.3f} | Train:{.3f} | Validation:{.3f}/{.3f} | Best: {.3f}/{.3f}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
             # logging.info('Best_acc_top1: %f', best_acc_top1)
             # logging.info('Best_acc_top5: %f', best_acc_top5)
