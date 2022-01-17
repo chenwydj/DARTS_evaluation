@@ -47,10 +47,11 @@ parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='DrNAS_imagenet', help='which architecture to use')
 parser.add_argument('--grad_clip', type=float, default=5., help='gradient clipping')
 parser.add_argument('--label_smooth', type=float, default=0.1, help='label smoothing')
-parser.add_argument('--lr_scheduler', type=str, default='linear', help='lr scheduler, linear or cosine')
+parser.add_argument('--lr_scheduler', type=str, default='cosine', help='lr scheduler, linear or cosine')
 
 parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N', help='manual epoch number (useful on restarts)')
+parser.add_argument('--inference', action='store_true', help='inference only')
 
 parser.add_argument('--world-size', default=-1, type=int, help='number of nodes for distributed training')
 parser.add_argument('--rank', default=-1, type=int, help='node rank for distributed training')
@@ -217,6 +218,8 @@ def main_worker(gpu, ngpus_per_node, args):
         momentum=args.momentum,
         weight_decay=args.weight_decay
         )
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.decay_period, gamma=args.gamma)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
 
     best_acc_top1 = 0
     # https://github.com/pytorch/examples/blob/master/imagenet/main.py
@@ -236,6 +239,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 best_acc_top1 = best_acc_top1.to(args.gpu)
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
+            scheduler.load_state_dict(checkpoint['scheduler'])
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
@@ -279,13 +283,17 @@ def main_worker(gpu, ngpus_per_node, args):
 
     valid_queue = torch.utils.data.DataLoader(valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=args.workers)
 
-    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.decay_period, gamma=args.gamma)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
-    train_acc = valid_acc_top1 = valid_acc_top5 = best_acc_top1 = best_acc_top5 = 0
+    train_acc = valid_acc_top1 = valid_acc_top5 = best_acc_top5 = 0
     lr = args.learning_rate
 
     if not args.multiprocessing_distributed or (args.multiprocessing_distributed and args.rank % ngpus_per_node == 0):
         ############ master process writes logs #####################
+        if args.inference:
+            print("Running inference...")
+            valid_acc_top1, valid_acc_top5, valid_obj = infer(valid_queue, model, criterion)
+            logging.info('Inference: {:.3f}/{:.3f}'.format(valid_acc_top1, valid_acc_top5))
+            exit(0)
+
         epoch_bar = tqdm(range(args.start_epoch, args.epochs), position=0, leave=True)
         for epoch in epoch_bar:
             logging.info("<< ============== JOB (PID = %d) %s ============== >>"%(PID, args.save))
@@ -347,9 +355,12 @@ def main_worker(gpu, ngpus_per_node, args):
                 'state_dict': model.state_dict(),
                 'best_acc_top1': best_acc_top1,
                 'optimizer': optimizer.state_dict(),
+                'scheduler': scheduler.state_dict()
                 }, is_best, args.save)
     else:
         ############ processes no logs #####################
+        if args.inference:
+            exit(0)
         for epoch in range(args.epochs):
             if args.distributed:
                 train_sampler.set_epoch(epoch)
