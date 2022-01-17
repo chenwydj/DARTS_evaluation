@@ -42,6 +42,7 @@ parser.add_argument('--layers', type=int, default=14, help='total number of laye
 parser.add_argument('--auxiliary', action='store_true', default=False, help='use auxiliary tower')
 parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight for auxiliary loss')
 parser.add_argument('--drop_path_prob', type=float, default=0, help='drop path probability')
+parser.add_argument('--save_root', type=str, default='./', help='root folder for saving ckpt')
 parser.add_argument('--save', type=str, default='exp', help='experiment name')
 parser.add_argument('--seed', type=int, default=0, help='random seed')
 parser.add_argument('--arch', type=str, default='DrNAS_imagenet', help='which architecture to use')
@@ -141,10 +142,11 @@ def main_worker(gpu, ngpus_per_node, args):
         builtins.print = print_pass
     else:
         # set up logs
-        args.save = './experiments/imagenet/eval-{}-{}-{}-{}'.format(
+        args.save = 'experiments/imagenet/eval-{}-{}-{}-{}'.format(
             args.save, time.strftime("%Y%m%d-%H%M%S"), args.arch, args.seed)
         if args.auxiliary:
             args.save += '-auxiliary-' + str(args.auxiliary_weight)
+        args.save = os.path.join(args.save_root, args.save)
         utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
         log_format = '%(asctime)s %(message)s'
