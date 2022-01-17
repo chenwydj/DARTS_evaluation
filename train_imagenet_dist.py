@@ -218,6 +218,7 @@ def main_worker(gpu, ngpus_per_node, args):
         weight_decay=args.weight_decay
         )
 
+    best_acc_top1 = 0
     # https://github.com/pytorch/examples/blob/master/imagenet/main.py
     if args.resume:
         if os.path.isfile(args.resume):
@@ -229,10 +230,10 @@ def main_worker(gpu, ngpus_per_node, args):
                 loc = 'cuda:{}'.format(args.gpu)
                 checkpoint = torch.load(args.resume, map_location=loc)
             args.start_epoch = checkpoint['epoch']
-            best_acc1 = checkpoint['best_acc1']
+            best_acc_top1 = checkpoint['best_acc_top1']
             if args.gpu is not None:
-                # best_acc1 may be from a checkpoint from a different GPU
-                best_acc1 = best_acc1.to(args.gpu)
+                # best_acc_top1 may be from a checkpoint from a different GPU
+                best_acc_top1 = best_acc_top1.to(args.gpu)
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
@@ -304,7 +305,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = lr * (epoch + 1) / 5.0
                 # logging.info('Warming-up Epoch: %d, LR: %e', epoch, lr * (epoch + 1) / 5.0)
-            description = 'Epoch [{}/{}] | LR:{} | Train:{} | Validation:{}/{} | Best: {}/{}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
+            description = 'Epoch [{}/{}] | LR:{:.3f} | Train:{:.3f} | Validation:{:.3f}/{:.3f} | Best: {:.3f}/{:.3f}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
 
             if args.distributed or args.gpu is None:
@@ -315,13 +316,13 @@ def main_worker(gpu, ngpus_per_node, args):
             epoch_start = time.time()
             train_acc, train_obj = train(args, train_queue, model, criterion_smooth, optimizer)
             # logging.info('Train_acc: %f', train_acc)
-            description = 'Epoch [{}/{}] | LR:{.3f} | Train:{.3f} | Validation:{.3f}/{.3f} | Best: {.3f}/{.3f}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
+            description = 'Epoch [{}/{}] | LR:{:.3f} | Train:{:.3f} | Validation:{:.3f}/{:.3f} | Best: {:.3f}/{:.3f}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
 
             valid_acc_top1, valid_acc_top5, valid_obj = infer(valid_queue, model, criterion)
             # logging.info('Valid_acc_top1: %f', valid_acc_top1)
             # logging.info('Valid_acc_top5: %f', valid_acc_top5)
-            description = 'Epoch [{}/{}] | LR:{.3f} | Train:{.3f} | Validation:{.3f}/{.3f} | Best: {.3f}/{.3f}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
+            description = 'Epoch [{}/{}] | LR:{:.3f} | Train:{:.3f} | Validation:{:.3f}/{:.3f} | Best: {:.3f}/{:.3f}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
             epoch_duration = time.time() - epoch_start
             # logging.info('Epoch time: %ds.', epoch_duration)
@@ -337,7 +338,7 @@ def main_worker(gpu, ngpus_per_node, args):
             writer.add_scalar("acc/valid_best_top5", best_acc_top5, epoch)
             writer.add_scalar("acc/valid_top1", valid_acc_top1, epoch)
             writer.add_scalar("acc/valid_top5", valid_acc_top5, epoch)
-            description = 'Epoch [{}/{}] | LR:{.3f} | Train:{.3f} | Validation:{.3f}/{.3f} | Best: {.3f}/{.3f}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
+            description = 'Epoch [{}/{}] | LR:{:.3f} | Train:{:.3f} | Validation:{:.3f}/{:.3f} | Best: {:.3f}/{:.3f}'.format(epoch+1, args.epochs, current_lr, train_acc, valid_acc_top1, valid_acc_top5, best_acc_top1, best_acc_top5)
             epoch_bar.set_description(description)
             # logging.info('Best_acc_top1: %f', best_acc_top1)
             # logging.info('Best_acc_top5: %f', best_acc_top5)
