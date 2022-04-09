@@ -18,6 +18,6 @@ CUDA_VISIBLE_DEVICES=0 python train.py --cutout --auxiliary --data /raid/ --arch
 The settings `batch_size = 768` and `learning_rate = 0.5` by default are designed for 8-gpu training.
 ```bash
 # ImageNet distributed training
-python train_imagenet_dist.py --batch_size 768 --dist-url 'tcp://localhost:10001' --multiprocessing-distributed --world-size 1 --rank 0 --data /raid/imagenet --arch TENAS_imagenet --epochs 350 \
+python train_imagenet_dist.py --batch_size 768 --dist-url 'tcp://localhost:10001' --multiprocessing-distributed --world-size 1 --rank 0 --data /raid/imagenet --arch TENAS_imagenet\
 --save_root ./
 ```
